@@ -15,7 +15,10 @@ export const useChatStore = create((set, get) => ({
     set({ isUserLoading: true });
     try {
       const response = await axiosInstance.get("/message/users");
-      set({ users: response.data });
+      const users = Array.isArray(response.data)
+        ? response.data.map((u) => ({ ...u }))
+        : [];
+      set({ users });
     } catch {
       toast.error("Failed to load users");
     } finally {
@@ -51,6 +54,14 @@ export const useChatStore = create((set, get) => ({
       );
       set((state) => ({
         messages: [...state.messages, response.data],
+        users: state.users
+          .map((u) =>
+            u._id === selectedUser._id
+              ? { ...u, lastMessageAt: response.data.createdAt }
+              : u
+          )
+          // Optimistically sort so the conversation jumps to top
+          .sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0)),
       }));
       if (socket?.connected) {
         socket.emit("sendMessage", {
