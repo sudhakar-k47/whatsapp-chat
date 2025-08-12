@@ -1,18 +1,16 @@
+import { getReceiversSocketId, io } from "../lib/socket.js";
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import mongoose from "mongoose";
-import { io } from "../lib/socket.js"; // Ensure this is the socket.io server instance
 
-// Store connected users: { userId: socketId }
+// This will store connected users { userId: socketId }
 const onlineUsers = new Map();
 
-// Register a connected user
 export const registerSocketUser = (userId, socketId) => {
     onlineUsers.set(userId.toString(), socketId);
 };
 
-// Remove a disconnected user
 export const removeSocketUser = (socketId) => {
     for (const [userId, id] of onlineUsers.entries()) {
         if (id === socketId) {
@@ -22,12 +20,6 @@ export const removeSocketUser = (socketId) => {
     }
 };
 
-// Get receiver's socket ID
-export const getReceiversSocketId = (receiverId) => {
-    return onlineUsers.get(receiverId.toString()) || null;
-};
-
-// Get users for sidebar with their last message
 export const getUsersForSidebar = async (req, res) => {
     try {
         const loggedInUserId = req.user._id;
@@ -84,18 +76,16 @@ export const getUsersForSidebar = async (req, res) => {
     }
 };
 
-// Get all messages between two users
 export const getMessages = async (req, res) => {
     try {
         const { id: userToChatId } = req.params;
         const myId = req.user._id;
-
         const messages = await Message.find({
             $or: [
                 { senderId: myId, receiverId: userToChatId },
                 { senderId: userToChatId, receiverId: myId }
             ]
-        }).sort({ createdAt: 1 }); // Oldest first
+        }).sort({ createdAt: 1 }); // sort messages by time
 
         return res.status(200).json(messages);
     } catch (error) {
@@ -104,15 +94,14 @@ export const getMessages = async (req, res) => {
     }
 };
 
-// Send message (text or image)
+
 export const sendMessage = async (req, res) => {
     try {
         const { text, image } = req.body;
         const { id: receiverId } = req.params;
         const senderId = req.user._id;
 
-        let imageUrl = null;
-
+        let imageUrl;
         if (image) {
             const uploadResponse = await cloudinary.uploader.upload(image, {
                 resource_type: "image"
@@ -127,12 +116,12 @@ export const sendMessage = async (req, res) => {
             receiverId
         });
 
-        // Emit to receiver if online
-        const receiverSocketId = getReceiversSocketId(receiverId);
+        const receiverSocketIds = getReceiversSocketId(receiverId);
+        console.log(`Sending message to ${receiverId}, sockets:`, receiverSocketIds);
 
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("newMessage", newMessage);
-        }
+        receiverSocketIds.forEach(socketId => {
+            io.to(socketId).emit("newMessage", newMessage);
+        });
 
         return res.status(201).json(newMessage);
     } catch (error) {
