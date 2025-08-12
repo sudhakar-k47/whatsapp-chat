@@ -1,45 +1,86 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore";
 import { Image, X, Send } from "lucide-react";
 
 const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
+  const [isTyping, setIsTyping] = useState(false);
   const fileInputRef = useRef(null);
-  const { sendMessage } = useChatStore();
+  const typingTimeoutRef = useRef(null);
+
+  const { sendMessage, selectedUser } = useChatStore();
+  const { socket } = useAuthStore();
+
+  const emitTyping = useCallback(
+    (typing) => {
+      if (!socket || !selectedUser) return;
+      const userId = selectedUser._id || selectedUser.id;
+      socket.emit("typing", { receiverId: userId, isTyping: typing });
+    },
+    [socket, selectedUser]
+  );
+
+  const handleTextChange = (e) => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (newText && !isTyping) {
+      setIsTyping(true);
+      emitTyping(true);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTyping) {
+        setIsTyping(false);
+        emitTyping(false);
+      }
+    }, 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (isTyping) emitTyping(false);
+    };
+  }, [isTyping, emitTyping]);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
+      reader.onloadend = () => setImagePreview(reader.result);
       reader.readAsDataURL(file);
     }
   };
 
-  const handleFileInputChange = (e) => {
-    handleImageChange(e);
-  };
-
   const removeImagePreview = () => {
     setImagePreview(null);
-    fileInputRef.current.value = null;
+    if (fileInputRef.current) fileInputRef.current.value = null;
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (text.trim() || imagePreview) {
-      sendMessage({ text: text.trim(), image: imagePreview });
-      setText("");
-      setImagePreview(null);
-      fileInputRef.current.value = null;
+    if (!text.trim() && !imagePreview) return;
+
+    if (isTyping) {
+      setIsTyping(false);
+      emitTyping(false);
     }
+
+    sendMessage({ text: text.trim(), image: imagePreview });
+    setText("");
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = null;
   };
 
   return (
-    <div className="p-4 w-full">
+    <div className="p-3 w-full">
       {imagePreview && (
         <div className="mb-3 flex items-center gap-2">
           <div className="relative">
@@ -59,20 +100,15 @@ const MessageInput = () => {
         </div>
       )}
 
-      <form
-        onSubmit={handleSendMessage}
-        className="flex items-center gap-2 w-full"
-      >
+      <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
         <div className="relative flex-1">
           <input
             type="text"
             className="w-full input input-bordered rounded-full input-md pr-12"
-            placeholder="Type a message ..."
+            placeholder="Type a message..."
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={handleTextChange}
           />
-
-          {/* Camera Icon Button inside input */}
           <button
             onClick={() => fileInputRef.current.click()}
             type="button"
@@ -81,18 +117,14 @@ const MessageInput = () => {
           >
             <Image size={24} />
           </button>
-
-          {/* Hidden File Input */}
           <input
             type="file"
             accept="image/*"
             className="hidden"
             ref={fileInputRef}
-            onChange={handleFileInputChange}
+            onChange={handleImageChange}
           />
         </div>
-
-        {/* Send Button outside input */}
         <button
           type="submit"
           className="btn btn-primary rounded-full p-3 flex items-center justify-center"

@@ -9,13 +9,14 @@ export const useChatStore = create((set, get) => ({
   selectedUser: null,
   isUserLoading: false,
   isMessagesLoading: false,
+  typingUsers: [],
 
   getUsers: async () => {
     set({ isUserLoading: true });
     try {
       const response = await axiosInstance.get("/message/users");
       set({ users: response.data });
-    } catch (error) {
+    } catch {
       toast.error("Failed to load users");
     } finally {
       set({ isUserLoading: false });
@@ -27,7 +28,7 @@ export const useChatStore = create((set, get) => ({
     try {
       const response = await axiosInstance.get(`/message/${userId}`);
       set({ messages: response.data });
-    } catch (error) {
+    } catch {
       toast.error("Failed to load messages");
     } finally {
       set({ isMessagesLoading: false });
@@ -44,7 +45,6 @@ export const useChatStore = create((set, get) => ({
       return;
     }
     try {
-      // Send to backend (DB)
       const response = await axiosInstance.post(
         `/message/send/${selectedUser._id}`,
         messageData
@@ -52,45 +52,64 @@ export const useChatStore = create((set, get) => ({
       set((state) => ({
         messages: [...state.messages, response.data],
       }));
-      // Emit to socket for real-time delivery
-      if (socket && socket.connected) {
+      if (socket?.connected) {
         socket.emit("sendMessage", {
           ...response.data,
           receiverId: selectedUser._id,
         });
       }
-      // Optionally, if sending a previous message
       if (options.previousMessage) {
         toast.success("Previous message sent!");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to send message");
     }
   },
 
+  setTypingUsers: (typingUsers) => set({ typingUsers }),
+
+  isUserTyping: (userId) => {
+    const { typingUsers } = get();
+    return typingUsers.some(id => id?.toString() === userId?.toString());
+  },
+
+  initializeTypingListeners: () => {
+    const handleTypingUsersUpdate = (event) => {
+      set({ typingUsers: event.detail });
+    };
+    const handleUserTypingUpdate = (event) => {
+      const { userId, isTyping } = event.detail;
+      const currentTypingUsers = get().typingUsers;
+      if (isTyping && !currentTypingUsers.some(id => id?.toString() === userId?.toString())) {
+        set({ typingUsers: [...currentTypingUsers, userId] });
+      } else if (!isTyping && currentTypingUsers.some(id => id?.toString() === userId?.toString())) {
+        set({ typingUsers: currentTypingUsers.filter(id => id?.toString() !== userId?.toString()) });
+      }
+    };
+    window.addEventListener('typingUsersUpdate', handleTypingUsersUpdate);
+    window.addEventListener('userTypingUpdate', handleUserTypingUpdate);
+    return () => {
+      window.removeEventListener('typingUsersUpdate', handleTypingUsersUpdate);
+      window.removeEventListener('userTypingUpdate', handleUserTypingUpdate);
+    };
+  },
+
   subscribeToMessages: () => {
-  const { selectedUser } = get();
-  const socket = useAuthStore.getState().socket;
-  if (!selectedUser || !socket) return;
-  // Remove previous listeners to avoid duplicate handlers
-  socket.off("newMessage");
-  socket.on("newMessage", (newMessage) => {
-    // Only add if message is for this chat
-    if (
-      (newMessage.senderId === selectedUser._id || newMessage.receiverId === selectedUser._id)
-    ) {
-      set({
-        messages: [...get().messages, newMessage],
-      });
-    }
-  });
-},
-
-unsubscribeFromMessages: () => {
-  const socket = useAuthStore.getState().socket;
-  if (socket) {
+    const { selectedUser } = get();
+    const socket = useAuthStore.getState().socket;
+    if (!selectedUser || !socket) return;
     socket.off("newMessage");
-  }
-}
+    socket.on("newMessage", (newMessage) => {
+      if (newMessage.senderId === selectedUser._id || newMessage.receiverId === selectedUser._id) {
+        set({
+          messages: [...get().messages, newMessage],
+        });
+      }
+    });
+  },
 
+  unsubscribeFromMessages: () => {
+    const socket = useAuthStore.getState().socket;
+    socket?.off("newMessage");
+  }
 }));

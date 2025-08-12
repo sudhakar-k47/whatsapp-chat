@@ -5,9 +5,9 @@ import { useChatStore } from "../store/useChatStore"
 import useMediaQuery from "../hooks/useMediaQuery";
 
 const ChatHeader = () => {
-  const { selectedUser, setSelectedUser } = useChatStore();
+  const { selectedUser, setSelectedUser, isUserTyping } = useChatStore();
   const { onlineUsers } = useAuthStore();
-  const isMobile = useMediaQuery("(max-width: 700px)");
+  const isMobile = useMediaQuery("(max-width: 750px)");
 
   return (
     <div className="p-2.5 border-b border-base-300">
@@ -35,7 +35,18 @@ const ChatHeader = () => {
           <div className="min-w-0">
             <h3 className="font-medium truncate text-base sm:text-lg">{selectedUser.fullName}</h3>
             <p className="text-xs sm:text-sm text-base-content/70 truncate">
-              {onlineUsers.includes(selectedUser._id) ? "Online" : "Offline"}
+              {isUserTyping(selectedUser._id) ? (
+                <span className="flex items-center gap-1">
+                  <span className="typing-indicator">
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                  </span>
+                  typing...
+                </span>
+              ) : (
+                onlineUsers.includes(selectedUser._id) ? "Online" : "Offline"
+              )}
             </p>
           </div>
         </div>

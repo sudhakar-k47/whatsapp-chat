@@ -7,7 +7,7 @@ import { useChatStore } from '../store/useChatStore';
 
 const HomePage = () => {
   const { selectedUser } = useChatStore();
-  const isMobile = useMediaQuery('(max-width: 700px)'); // mobile/tablet breakpoint
+  const isMobile = useMediaQuery('(max-width: 750px)'); // mobile/tablet breakpoint
 
   return (
     isMobile ? (
