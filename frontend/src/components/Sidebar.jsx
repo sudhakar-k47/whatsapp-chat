@@ -5,14 +5,21 @@ import SidebarSkeleton from "./skeletons/SidebarSkeleton";
 import { Search, Users } from "lucide-react";
 
 const Sidebar = () => {
-  const { getUsers, users, setSelectedUser, selectedUser, isUserLoading, isUserTyping } = useChatStore();
-  const { onlineUsers, authUser } = useAuthStore();
+  const { getUsers, users, setSelectedUser, selectedUser, isUserLoading, isUserTyping, unreadCounts, subscribeToMessages, unsubscribeFromMessages } = useChatStore();
+  const { onlineUsers, authUser, socket } = useAuthStore();
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     getUsers();
   }, [getUsers]);
+
+  // Ensure socket listeners are attached globally for unread updates
+  useEffect(() => {
+    subscribeToMessages();
+    return () => unsubscribeFromMessages();
+    // Re-run when socket connection state flips
+  }, [socket?.connected, subscribeToMessages, unsubscribeFromMessages]);
 
   // Filter and sort users by most recent chat time
   const filteredUsers = useMemo(() => {
@@ -33,6 +40,8 @@ const Sidebar = () => {
 
   if (isUserLoading) return <SidebarSkeleton />;
 
+  console.log(unreadCounts);
+
   return (
     <aside className="h-full w-full lg:w-80 md:w-72 border-r border-base-300 flex flex-col transition-all duration-200 bg-base-100">
       {/* Header */}
@@ -50,9 +59,11 @@ const Sidebar = () => {
               onChange={(e) => setShowOnlineOnly(e.target.checked)}
               className="checkbox checkbox-sm"
             />
-          <span className="text-sm">Show online only</span>
+            <span className="text-sm">Show online only</span>
           </label>
-          <span className="text-xs text-zinc-500">({onlineUsers.length - 1} online)</span>
+          <span className="text-xs text-zinc-500">
+            ({onlineUsers.length - 1} online)
+          </span>
         </div>
       </div>
 
@@ -68,12 +79,22 @@ const Sidebar = () => {
           />
           <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery('')}
+            <button
+              onClick={() => setSearchQuery("")}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           )}
@@ -105,24 +126,33 @@ const Sidebar = () => {
             </div>
 
             {/* User info */}
-            <div className="flex flex-col text-left min-w-0 flex-1">
-              <div className="font-medium truncate text-base sm:text-sm">{user.fullName} {(user._id == authUser._id) ? " (me)" : ""}</div>
-              <div className="text-xs sm:text-sm text-zinc-400 truncate">
-                {isUserTyping(user._id) ? (
-                  <span className="flex items-center gap-1 text-blue-600">
-                    <span className="typing-indicator">
-                      <span className="dot"></span>
-                      <span className="dot"></span>
-                      <span className="dot"></span>
+            <div className="flex items-center justify-between gap-2 min-w-0 flex-1">
+              <div className="flex flex-col text-left min-w-0">
+                <div className="font-medium truncate text-base sm:text-sm">
+                  {user.fullName} {user._id == authUser._id ? " (me)" : ""}
+                </div>
+                <div className="text-xs sm:text-sm text-zinc-400 truncate">
+                  {isUserTyping(user._id) ? (
+                    <span className="flex items-center gap-1 text-blue-600">
+                      <span className="typing-indicator">
+                        <span className="dot"></span>
+                        <span className="dot"></span>
+                        <span className="dot"></span>
+                      </span>
+                      typing...
                     </span>
-                    typing...
-                  </span>
-                ) : onlineUsers.includes(user._id) ? (
-                  <span className="text-green-600 font-semibold">Online</span>
-                ) : (
-                  <span>Offline</span>
-                )}
+                  ) : onlineUsers.includes(user._id) ? (
+                    <span className="text-green-600 font-semibold">Online</span>
+                  ) : (
+                    <span>Offline</span>
+                  )}
+                </div>
               </div>
+              {unreadCounts[user._id] > 0 && (
+                <span className="ml-2 shrink-0 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {unreadCounts[user._id]}
+                </span>
+              )}
             </div>
           </button>
         ))}

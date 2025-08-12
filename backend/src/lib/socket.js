@@ -20,40 +20,30 @@ export function getReceiversSocketId(userId) {
 
 export function getTypingUsers() {
   const now = Date.now();
-  const typingUsers = [];
-  Object.keys(userTypingMap).forEach(userId => {
-    if (now - userTypingMap[userId].timestamp > 3000) {
-      delete userTypingMap[userId];
-    } else if (userTypingMap[userId].typing) {
-      typingUsers.push(userId);
-    }
-  });
-  return typingUsers;
+  return Object.entries(userTypingMap)
+    .filter(([_, { typing, timestamp }]) => typing && (now - timestamp <= 3000))
+    .map(([userId]) => userId);
 }
 
 io.on("connection", (socket) => {
   const userId = socket.handshake.query.userId;
   if (!userId || userId === "undefined") return;
-  if (!userSocketMap[userId]) {
-    userSocketMap[userId] = [];
-  }
+
+  if (!userSocketMap[userId]) userSocketMap[userId] = [];
   userSocketMap[userId].push(socket.id);
+
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
+
   socket.emit("testConnection", { message: "Socket connected successfully", userId });
 
-  socket.on("typing", (data) => {
-    const { receiverId, isTyping } = data;
-    if (isTyping) {
-      userTypingMap[userId] = { typing: true, timestamp: Date.now() };
-    } else {
-      if (userTypingMap[userId]) {
-        userTypingMap[userId].typing = false;
-      }
-    }
+  socket.on("typing", ({ receiverId, isTyping }) => {
+    userTypingMap[userId] = { typing: isTyping, timestamp: Date.now() };
+
     const receiverSocketIds = getReceiversSocketId(receiverId);
-    receiverSocketIds.forEach(socketId => {
-      io.to(socketId).emit("userTyping", { userId, isTyping });
-    });
+    receiverSocketIds.forEach(id =>
+      io.to(id).emit("userTyping", { userId, isTyping })
+    );
+
     io.emit("typingUsers", getTypingUsers());
   });
 
@@ -70,4 +60,4 @@ io.on("connection", (socket) => {
   });
 });
 
-export { io, app, server, userSocketMap, userTypingMap };
+export { io, app, server, userSocketMap };
