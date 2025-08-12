@@ -3,6 +3,7 @@ import { useAuthStore } from "../store/useAuthStore"
 import { useChatStore } from "../store/useChatStore"
 
 import useMediaQuery from "../hooks/useMediaQuery";
+import { formatMessageDateTime } from "../lib/utils";
 
 const ChatHeader = () => {
   const { selectedUser, setSelectedUser, isUserTyping } = useChatStore();
@@ -29,6 +30,11 @@ const ChatHeader = () => {
           <div className="avatar">
             <div className="size-10 rounded-full relative">
               <img src={selectedUser.profilePic || "/avatar.png"} alt={selectedUser.fullName} />
+              {onlineUsers.includes(selectedUser._id) && (
+                <span className="absolute bottom-0 right-0 size-3 bg-green-500 rounded-full ring-2 ring-base-100">
+                  {/* <span className="sr-only">Online</span> */}
+                </span>
+              )}
             </div>
           </div>
           {/* User info */}
@@ -45,7 +51,7 @@ const ChatHeader = () => {
                   typing...
                 </span>
               ) : (
-                onlineUsers.includes(selectedUser._id) ? "Online" : "Offline"
+                formatMessageDateTime(selectedUser.lastMessageAt)
               )}
             </p>
           </div>

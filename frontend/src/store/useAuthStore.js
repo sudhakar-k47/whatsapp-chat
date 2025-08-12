@@ -113,6 +113,17 @@ export const useAuthStore = create((set, get) => ({
       console.log("❌ Socket disconnected");
     });
 
+    // Broadcast incoming messages globally so other stores/components can react
+    newSocket.on("newMessage", (newMessage) => {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("newMessageReceived", { detail: newMessage })
+        );
+      } catch (err) {
+        console.error("Failed to dispatch newMessageReceived event", err);
+      }
+    });
+
     set({ socket: newSocket });
   },
 

@@ -6,7 +6,7 @@ import { Search, Users } from "lucide-react";
 
 const Sidebar = () => {
   const { getUsers, users, setSelectedUser, selectedUser, isUserLoading, isUserTyping } = useChatStore();
-  const { onlineUsers } = useAuthStore();
+  const { onlineUsers, authUser } = useAuthStore();
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -14,17 +14,21 @@ const Sidebar = () => {
     getUsers();
   }, [getUsers]);
 
-  // Filter users based on online status and search query
+  // Filter and sort users by most recent chat time
   const filteredUsers = useMemo(() => {
-    return users.filter((user) => {
-      const isOnline = onlineUsers.includes(user._id);
-      const matchesSearch = user.fullName.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      if (showOnlineOnly) {
-        return isOnline && matchesSearch;
-      }
-      return matchesSearch;
-    });
+    return users
+      .filter((user) => {
+        const isOnline = onlineUsers.includes(user._id);
+        const matchesSearch = user.fullName
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+
+        if (showOnlineOnly) return isOnline && matchesSearch;
+        return matchesSearch;
+      })
+      .sort(
+        (a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0)
+      );
   }, [users, onlineUsers, showOnlineOnly, searchQuery]);
 
   if (isUserLoading) return <SidebarSkeleton />;
@@ -102,7 +106,7 @@ const Sidebar = () => {
 
             {/* User info */}
             <div className="flex flex-col text-left min-w-0 flex-1">
-              <div className="font-medium truncate text-base sm:text-sm">{user.fullName}</div>
+              <div className="font-medium truncate text-base sm:text-sm">{user.fullName} {(user._id == authUser._id) ? " (me)" : ""}</div>
               <div className="text-xs sm:text-sm text-zinc-400 truncate">
                 {isUserTyping(user._id) ? (
                   <span className="flex items-center gap-1 text-blue-600">

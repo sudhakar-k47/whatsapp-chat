@@ -15,7 +15,11 @@ export const useChatStore = create((set, get) => ({
     set({ isUserLoading: true });
     try {
       const response = await axiosInstance.get("/message/users");
-      set({ users: response.data });
+      // Ensure we have a stable shape with lastMessageAt if backend provides it
+      const users = Array.isArray(response.data)
+        ? response.data.map((u) => ({ ...u }))
+        : [];
+      set({ users });
     } catch {
       toast.error("Failed to load users");
     } finally {
@@ -51,6 +55,14 @@ export const useChatStore = create((set, get) => ({
       );
       set((state) => ({
         messages: [...state.messages, response.data],
+        users: state.users
+          .map((u) =>
+            u._id === selectedUser._id
+              ? { ...u, lastMessageAt: response.data.createdAt }
+              : u
+          )
+          // Optimistically sort so the conversation jumps to top
+          .sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0)),
       }));
       if (socket?.connected) {
         socket.emit("sendMessage", {
@@ -86,11 +98,29 @@ export const useChatStore = create((set, get) => ({
         set({ typingUsers: currentTypingUsers.filter(id => id?.toString() !== userId?.toString()) });
       }
     };
+    const handleNewMessageReceived = (event) => {
+      const newMessage = event.detail;
+      // Update lastMessageAt for the counterpart user in this message
+      const myId = useAuthStore.getState().authUser?._id || useAuthStore.getState().authUser?.id;
+      const counterpartId = newMessage.senderId?.toString() === myId?.toString()
+        ? newMessage.receiverId
+        : newMessage.senderId;
+      if (!counterpartId) return;
+      set((state) => ({
+        users: state.users
+          .map((u) =>
+            u._id === counterpartId ? { ...u, lastMessageAt: newMessage.createdAt } : u
+          )
+          .sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0)),
+      }));
+    };
     window.addEventListener('typingUsersUpdate', handleTypingUsersUpdate);
     window.addEventListener('userTypingUpdate', handleUserTypingUpdate);
+    window.addEventListener('newMessageReceived', handleNewMessageReceived);
     return () => {
       window.removeEventListener('typingUsersUpdate', handleTypingUsersUpdate);
       window.removeEventListener('userTypingUpdate', handleUserTypingUpdate);
+      window.removeEventListener('newMessageReceived', handleNewMessageReceived);
     };
   },
 
@@ -101,9 +131,16 @@ export const useChatStore = create((set, get) => ({
     socket.off("newMessage");
     socket.on("newMessage", (newMessage) => {
       if (newMessage.senderId === selectedUser._id || newMessage.receiverId === selectedUser._id) {
-        set({
-          messages: [...get().messages, newMessage],
-        });
+        set((state) => ({
+          messages: [...state.messages, newMessage],
+          users: state.users
+            .map((u) =>
+              u._id === selectedUser._id
+                ? { ...u, lastMessageAt: newMessage.createdAt }
+                : u
+            )
+            .sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0)),
+        }));
       }
     });
   },
