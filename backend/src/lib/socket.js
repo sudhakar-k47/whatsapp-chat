@@ -19,19 +19,18 @@ export function getReceiversSocketId(userId) {
 }
 
 io.on("connection", (socket) => {
-    console.log("🟢 New client connected:", socket.id);
-
     const userId = socket.handshake.query.userId;
-
-    if (userId && userId !== "undefined") {
-        if (!userSocketMap[userId]) {
-            userSocketMap[userId] = [];
-        }
-        userSocketMap[userId].push(socket.id);
-        console.log(`User ${userId} connected. Sockets:`, userSocketMap[userId]);
-    } else {
+    if (!userId || userId === "undefined") {
         console.warn(`⚠️ Socket ${socket.id} connected without a valid userId`);
+        // Do not track or emit for invalid userId, but allow the connection (no disconnect)
+        return;
     }
+    console.log("🟢 New client connected:", socket.id);
+    if (!userSocketMap[userId]) {
+        userSocketMap[userId] = [];
+    }
+    userSocketMap[userId].push(socket.id);
+    console.log(`User ${userId} connected. Sockets:`, userSocketMap[userId]);
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 

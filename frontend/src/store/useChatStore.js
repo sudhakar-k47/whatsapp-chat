@@ -36,13 +36,15 @@ export const useChatStore = create((set, get) => ({
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),
 
-  sendMessage: async (messageData) => {
+  sendMessage: async (messageData, options = {}) => {
     const { selectedUser } = get();
+    const socket = useAuthStore.getState().socket;
     if (!selectedUser) {
       toast.error("No user selected");
       return;
     }
     try {
+      // Send to backend (DB)
       const response = await axiosInstance.post(
         `/message/send/${selectedUser._id}`,
         messageData
@@ -50,6 +52,17 @@ export const useChatStore = create((set, get) => ({
       set((state) => ({
         messages: [...state.messages, response.data],
       }));
+      // Emit to socket for real-time delivery
+      if (socket && socket.connected) {
+        socket.emit("sendMessage", {
+          ...response.data,
+          receiverId: selectedUser._id,
+        });
+      }
+      // Optionally, if sending a previous message
+      if (options.previousMessage) {
+        toast.success("Previous message sent!");
+      }
     } catch (error) {
       toast.error("Failed to send message");
     }
@@ -57,38 +70,27 @@ export const useChatStore = create((set, get) => ({
 
   subscribeToMessages: () => {
   const { selectedUser } = get();
-  if (!selectedUser) {
-    toast.error("No user selected");
-    return;
-  }
-
   const socket = useAuthStore.getState().socket;
-  if (!socket) {
-    console.warn("Socket not connected — cannot subscribe to messages.");
-    return;
-  }
-
+  if (!selectedUser || !socket) return;
+  // Remove previous listeners to avoid duplicate handlers
+  socket.off("newMessage");
   socket.on("newMessage", (newMessage) => {
-    set({
-      messages: [...get().messages, newMessage],
-    });
+    // Only add if message is for this chat
+    if (
+      (newMessage.senderId === selectedUser._id || newMessage.receiverId === selectedUser._id)
+    ) {
+      set({
+        messages: [...get().messages, newMessage],
+      });
+    }
   });
 },
 
 unsubscribeFromMessages: () => {
-  const { selectedUser } = get();
-  if (!selectedUser) {
-    toast.error("No user selected");
-    return;
-  }
-
   const socket = useAuthStore.getState().socket;
-  if (!socket) {
-    console.warn("Socket not connected — cannot unsubscribe from messages.");
-    return;
+  if (socket) {
+    socket.off("newMessage");
   }
-
-  socket.off("newMessage");
 }
 
 }));
