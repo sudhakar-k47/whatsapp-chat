@@ -26,7 +26,7 @@ export const getUsersForSidebar = async (req, res) => {
         const myObjectId = new mongoose.Types.ObjectId(loggedInUserId);
 
         const usersWithLastMessage = await User.aggregate([
-            // { $match: { _id: { $ne: myObjectId } } },
+            { $match: { _id: { $ne: myObjectId } } },
             {
                 $lookup: {
                     from: "messages",

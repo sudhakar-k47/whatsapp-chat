@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { Image, X, Send } from "lucide-react";
+import { Image, X, Paperclip, FileText, Plus, Send } from "lucide-react";
 
 const MessageInput = () => {
   const [text, setText] = useState("");
@@ -9,6 +9,7 @@ const MessageInput = () => {
   const [isTyping, setIsTyping] = useState(false);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const { sendMessage, selectedUser } = useChatStore();
   const { socket } = useAuthStore();
@@ -25,6 +26,12 @@ const MessageInput = () => {
   const handleTextChange = (e) => {
     const newText = e.target.value;
     setText(newText);
+
+    // Auto-resize textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -77,17 +84,22 @@ const MessageInput = () => {
     setText("");
     setImagePreview(null);
     if (fileInputRef.current) fileInputRef.current.value = null;
+
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
   };
 
   return (
     <div className="p-3 w-full">
       {imagePreview && (
         <div className="mb-3 flex items-center gap-2">
-          <div className="relative">
+          <div className="relative bg-transparent">
             <img
               src={imagePreview}
               alt="Preview"
-              className="w-20 h-20 object-cover rounded-lg border border-zinc-700"
+              className="w-20 h-20 object-cover rounded-lg border"
             />
             <button
               onClick={removeImagePreview}
@@ -100,22 +112,33 @@ const MessageInput = () => {
         </div>
       )}
 
-      <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
-        <div className="relative flex-1">
-          <input
-            type="text"
-            className="w-full input input-bordered rounded-full input-md pr-12"
-            placeholder="Type a message..."
-            value={text}
-            onChange={handleTextChange}
-          />
+      <form
+        onSubmit={handleSendMessage}
+        className="flex items-end gap-2 w-full"
+      >
+        <div className="relative flex-1 flex items-end bg-base-100 border rounded-lg p-2">
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              placeholder="Type a message..."
+              value={text}
+              onChange={handleTextChange}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e);
+                }
+              }}
+              className="w-full resize-none bg-transparent outline-none text-base max-h-40 overflow-y-auto"
+              style={{ lineHeight: "1.4" }}
+            />
           <button
             onClick={() => fileInputRef.current.click()}
             type="button"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-700"
+            className="ml-2 text-zinc-500 hover:text-zinc-700 cursor-pointer"
             aria-label="Attach image"
           >
-            <Image size={24} />
+            <Image size={20} />
           </button>
           <input
             type="file"
@@ -127,7 +150,7 @@ const MessageInput = () => {
         </div>
         <button
           type="submit"
-          className="btn btn-primary rounded-full p-3 flex items-center justify-center"
+          className="btn btn-primary rounded-lg p-3 flex items-center justify-center"
           aria-label="Send message"
           disabled={!text.trim() && !imagePreview}
         >
