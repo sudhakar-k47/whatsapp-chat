@@ -46,7 +46,7 @@ const MessageInput = () => {
             <img
               src={imagePreview}
               alt="Preview"
-              className="w-20 h-20 object-cover rounded-lg border [border-zinc-700]"
+              className="w-20 h-20 object-cover rounded-lg border border-zinc-700"
             />
             <button
               onClick={removeImagePreview}
@@ -59,15 +59,30 @@ const MessageInput = () => {
         </div>
       )}
 
-      <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-        <div className="flex-1 flex gap-2">
+      <form
+        onSubmit={handleSendMessage}
+        className="flex items-center gap-2 w-full"
+      >
+        <div className="relative flex-1">
           <input
             type="text"
-            className="w-full input input-bordered rounded-lg input-sm sm:input-md"
-            placeholder="Type a message ... "
+            className="w-full input input-bordered rounded-full input-md pr-12"
+            placeholder="Type a message ..."
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
+
+          {/* Camera Icon Button inside input */}
+          <button
+            onClick={() => fileInputRef.current.click()}
+            type="button"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-700"
+            aria-label="Attach image"
+          >
+            <Image size={24} />
+          </button>
+
+          {/* Hidden File Input */}
           <input
             type="file"
             accept="image/*"
@@ -75,23 +90,17 @@ const MessageInput = () => {
             ref={fileInputRef}
             onChange={handleFileInputChange}
           />
-
-          <button
-            onClick={() => fileInputRef.current.click()}
-            className="btn btn-primary"
-            type="button"
-          >
-            <Image size={20} />
-          </button>
-
-          <button
-            onClick={handleSendMessage}
-            className="btn btn-primary"
-            type="submit"
-          >
-            <Send size={20} />
-          </button>
         </div>
+
+        {/* Send Button outside input */}
+        <button
+          type="submit"
+          className="btn btn-primary rounded-full p-3 flex items-center justify-center"
+          aria-label="Send message"
+          disabled={!text.trim() && !imagePreview}
+        >
+          <Send size={20} />
+        </button>
       </form>
     </div>
   );
