@@ -25,9 +25,9 @@ app.use(
 
 // Test route
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Hello!' });
-});
+// app.get('/', (req, res) => {
+//   res.json({ message: 'Hello!' });
+// });
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Test route working' });
 });
